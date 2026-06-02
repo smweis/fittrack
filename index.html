@@ -1,0 +1,86 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="theme-color" content="#0f0f0f">
+  <title>FitTrack</title>
+  <link rel="manifest" href="manifest.json">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+
+  <!-- Bottom Nav (hidden during active workout) -->
+  <nav id="main-nav">
+    <button class="nav-btn active" data-view="dashboard">
+      <span class="nav-icon">⊙</span>
+      <span>Home</span>
+    </button>
+    <button class="nav-btn" data-view="templates">
+      <span class="nav-icon">☰</span>
+      <span>Templates</span>
+    </button>
+    <button class="nav-btn" data-view="calendar">
+      <span class="nav-icon">◫</span>
+      <span>Calendar</span>
+    </button>
+  </nav>
+
+  <!-- ── DASHBOARD ── -->
+  <section id="view-dashboard" class="view active">
+    <div id="dashboard-content"></div>
+  </section>
+
+  <!-- ── ACTIVE WORKOUT ── -->
+  <section id="view-workout" class="view">
+    <div id="workout-topbar">
+      <div id="elapsed-timer">0:00</div>
+      <div id="workout-title-bar"></div>
+      <button id="btn-finish-workout" class="btn btn-success btn-sm">Finish</button>
+    </div>
+    <div id="rest-timer-strip" class="hidden">
+      <span id="rest-countdown"></span>
+      <div id="rest-progress-track"><div id="rest-progress-fill"></div></div>
+      <button id="btn-skip-rest" class="btn-ghost-sm">Skip</button>
+    </div>
+    <div id="exercise-list"></div>
+    <div style="padding: 0 16px 24px;">
+      <button class="btn btn-secondary btn-full" onclick="openAddExerciseModal()">+ Add Exercise</button>
+    </div>
+  </section>
+
+  <!-- ── TEMPLATES LIST ── -->
+  <section id="view-templates" class="view">
+    <div class="view-header">
+      <h2>Templates</h2>
+      <button class="btn btn-primary btn-sm" onclick="openTemplateEditor(null)">+ New</button>
+    </div>
+    <div id="template-list-content"></div>
+  </section>
+
+  <!-- ── TEMPLATE EDITOR ── -->
+  <section id="view-template-editor" class="view">
+    <div id="template-editor-content"></div>
+  </section>
+
+  <!-- ── CALENDAR ── -->
+  <section id="view-calendar" class="view">
+    <div id="calendar-content"></div>
+  </section>
+
+  <!-- ── MODAL (bottom sheet) ── -->
+  <div id="modal-overlay" class="hidden">
+    <div id="modal-sheet">
+      <div id="modal-header">
+        <h3 id="modal-title"></h3>
+        <button id="btn-close-modal" class="btn-icon">✕</button>
+      </div>
+      <div id="modal-body"></div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
