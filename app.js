@@ -1,3 +1,23 @@
+// ── AUTH ──────────────────────────────────────────────────────
+const AUTH_PW = 'stronglikebull';
+
+function checkAuth() {
+  if (localStorage.getItem('ft_auth') === '1') {
+    el('auth-gate').classList.add('hidden');
+  }
+}
+function submitAuth() {
+  if (el('auth-input').value === AUTH_PW) {
+    localStorage.setItem('ft_auth', '1');
+    el('auth-gate').classList.add('hidden');
+    el('auth-error').textContent = '';
+  } else {
+    el('auth-error').textContent = 'Wrong password';
+    el('auth-input').value = '';
+    el('auth-input').focus();
+  }
+}
+
 // ── CONSTANTS ─────────────────────────────────────────────────
 const EQUIPMENT_LIST = [
   'barbell','dumbbell','cable','machine','bodyweight',
@@ -348,11 +368,51 @@ function showLogDetail(logId) {
   const log = S.getLogs().find(l => l.id === logId);
   if (!log) return;
   const dur = log.endTime ? Math.round((log.endTime-log.startTime)/60000) : null;
-  pickList(
-    `${log.templateName} — ${fmtDate(log.date)}${dur?` (${dur}m)`:''}`,
-    log.exercises.map(ex => ({ label: ex.exerciseName, sub: `${ex.sets.length} sets`, value: null })),
-    () => {}
+
+  const exRows = log.exercises.map(ex => {
+    const safeName = ex.exerciseName.replace(/'/g, "\\'");
+    const maxW = Math.max(...ex.sets.map(s => s.weight || 0));
+    const sub = maxW > 0 ? `${ex.sets.length} sets · max ${maxW} lbs` : `${ex.sets.length} sets`;
+    return `<div class="modal-item" onclick="showExerciseChart('${ex.exerciseId}','${safeName}')">
+      <div>
+        <div class="modal-item-label">${ex.exerciseName}</div>
+        <div class="modal-item-sub">${sub}</div>
+      </div>
+      <span style="color:var(--accent);font-size:13px">↗</span>
+    </div>`;
+  }).join('');
+
+  openModal(
+    `${log.templateName} — ${fmtDate(log.date)}${dur ? ` (${dur}m)` : ''}`,
+    `${exRows}
+    <div style="display:flex;gap:8px;margin-top:16px">
+      <button class="btn btn-secondary" style="flex:1" onclick="editLog('${logId}')">Edit</button>
+      <button class="btn btn-danger"    style="flex:1" onclick="deleteLog('${logId}')">Delete</button>
+    </div>`
   );
+}
+
+function editLog(id) {
+  const log = S.getLogs().find(l => l.id === id);
+  if (!log) return;
+  editingLogId = id;
+  S.saveCurrent({
+    ...log,
+    exercises: log.exercises.map(ex => ({
+      ...ex,
+      sets: ex.sets.map(s => ({ ...s, done: true })),
+    })),
+  });
+  closeModal();
+  showView('workout');
+}
+
+function deleteLog(id) {
+  if (!confirm("Delete this workout? This can't be undone.")) return;
+  S.saveLogs(S.getLogs().filter(l => l.id !== id));
+  closeModal();
+  if (activeView === 'calendar') renderCalendar();
+  else renderDashboard();
 }
 
 // ── RANDOM WORKOUT ────────────────────────────────────────────
@@ -492,6 +552,8 @@ function startCustomWorkout(exercises, name) {
 }
 
 // ── ACTIVE WORKOUT ────────────────────────────────────────────
+let editingLogId = null;
+
 function startWorkout(templateId) {
   const tpl = S.getTemplates().find(t => t.id === templateId);
   if (!tpl) return;
@@ -523,8 +585,24 @@ function startWorkout(templateId) {
 function renderActiveWorkout() {
   const w = S.getCurrent();
   if (!w) { showView('dashboard'); return; }
-  el('workout-title-bar').textContent = w.templateName;
-  startElapsed(w.startTime);
+
+  if (editingLogId) {
+    el('workout-title-bar').textContent = `Edit: ${w.templateName}`;
+    el('btn-finish-workout').textContent = 'Save';
+    el('btn-finish-workout').className = 'btn btn-primary btn-sm';
+    el('btn-discard-workout').textContent = 'Cancel';
+    el('elapsed-timer').textContent = fmtDate(w.date);
+    el('elapsed-timer').style.fontSize = '12px';
+    stopElapsed();
+  } else {
+    el('workout-title-bar').textContent = w.templateName;
+    el('btn-finish-workout').textContent = 'Finish';
+    el('btn-finish-workout').className = 'btn btn-success btn-sm';
+    el('btn-discard-workout').textContent = '✕';
+    el('elapsed-timer').style.fontSize = '18px';
+    startElapsed(w.startTime);
+  }
+
   buildExerciseList(w);
 }
 
@@ -666,13 +744,41 @@ function openAddExerciseModal() {
 }
 
 function finishWorkout() {
-  if (!confirm('Finish and save this workout?')) return;
+  const isEditing = !!editingLogId;
+  if (!confirm(isEditing ? 'Save changes to this workout?' : 'Finish and save this workout?')) return;
+
   const w = S.getCurrent();
-  w.endTime = Date.now();
+  if (!isEditing) w.endTime = Date.now();
+
+  // Only keep sets the user checked off
+  w.exercises = w.exercises
+    .map(ex => ({ ...ex, sets: ex.sets.filter(s => s.done) }))
+    .filter(ex => ex.sets.length > 0);
+
   const logs = S.getLogs();
-  logs.push(w);
+  if (isEditing) {
+    const idx = logs.findIndex(l => l.id === editingLogId);
+    if (idx >= 0) logs[idx] = w; else logs.push(w);
+  } else {
+    logs.push(w);
+  }
+
   S.saveLogs(logs);
   S.clearCurrent();
+  editingLogId = null;
+  stopElapsed();
+  stopRest();
+  showView('dashboard');
+}
+
+function discardWorkout() {
+  const isEditing = !!editingLogId;
+  const msg = isEditing
+    ? 'Cancel editing? Your changes won\'t be saved.'
+    : 'Discard this workout? All progress will be lost.';
+  if (!confirm(msg)) return;
+  S.clearCurrent();
+  editingLogId = null;
   stopElapsed();
   stopRest();
   showView('dashboard');
@@ -900,10 +1006,11 @@ function selectDay(iso, e) {
       <span>${ex.exerciseName}</span>
       <span class="text-muted">${ex.sets.length} sets</span>
     </div>`).join('');
-  detail.innerHTML = `<div class="card">
+  detail.innerHTML = `<div class="card" style="cursor:pointer" onclick="showLogDetail('${log.id}')">
     <div style="font-weight:700;font-size:17px;margin-bottom:2px">${log.templateName}</div>
     <div class="text-muted" style="font-size:13px;margin-bottom:12px">${fmtDate(iso)}${dur?` · ${dur} min`:''}</div>
     ${exRows}
+    <div style="color:var(--accent);font-size:13px;margin-top:10px">Tap to open →</div>
   </div>`;
 }
 
@@ -917,6 +1024,10 @@ document.addEventListener('DOMContentLoaded', () => {
     if (e.target === el('modal-overlay')) closeModal();
   });
   el('btn-finish-workout').addEventListener('click', finishWorkout);
+  el('btn-discard-workout').addEventListener('click', discardWorkout);
   el('btn-skip-rest').addEventListener('click', stopRest);
+  el('auth-btn').addEventListener('click', submitAuth);
+  el('auth-input').addEventListener('keydown', e => { if (e.key === 'Enter') submitAuth(); });
+  checkAuth();
   showView('dashboard');
 });

@@ -12,6 +12,16 @@
 </head>
 <body>
 
+  <!-- ── AUTH GATE ── -->
+  <div id="auth-gate">
+    <div id="auth-box">
+      <div id="auth-logo">FitTrack</div>
+      <input id="auth-input" type="password" placeholder="Password" autocomplete="current-password">
+      <button id="auth-btn" class="btn btn-primary btn-full">Unlock</button>
+      <div id="auth-error"></div>
+    </div>
+  </div>
+
   <!-- Bottom Nav (hidden during active workout) -->
   <nav id="main-nav">
     <button class="nav-btn active" data-view="dashboard">
@@ -38,7 +48,10 @@
     <div id="workout-topbar">
       <div id="elapsed-timer">0:00</div>
       <div id="workout-title-bar"></div>
-      <button id="btn-finish-workout" class="btn btn-success btn-sm">Finish</button>
+      <div style="display:flex;gap:8px">
+        <button id="btn-discard-workout" class="btn btn-secondary btn-sm">✕</button>
+        <button id="btn-finish-workout" class="btn btn-success btn-sm">Finish</button>
+      </div>
     </div>
     <div id="rest-timer-strip" class="hidden">
       <span id="rest-countdown"></span>
