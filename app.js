@@ -232,7 +232,8 @@ function showView(id) {
   );
   activeView = id;
   ({ dashboard: renderDashboard, templates: renderTemplates, calendar: renderCalendar,
-     workout: renderActiveWorkout, 'template-editor': renderTemplateEditor })[id]?.();
+     workout: renderActiveWorkout, 'template-editor': renderTemplateEditor,
+     more: renderMore })[id]?.();
 }
 
 // ── MODAL ─────────────────────────────────────────────────────
@@ -417,7 +418,30 @@ function renderDashboard() {
 function showLogDetail(logId) {
   const log = S.getLogs().find(l => l.id === logId);
   if (!log) return;
-  const dur = log.endTime ? Math.round((log.endTime-log.startTime)/60000) : null;
+  const dur    = log.endTime ? Math.round((log.endTime-log.startTime)/60000) : null;
+  const volume = calcVolume(log);
+  const totalSets = log.exercises.reduce((s, ex) => s + ex.sets.length, 0);
+  const volLabel  = volume >= 1000 ? (Math.round(volume/100)/10)+'k' : String(volume);
+
+  const statsHtml = `
+    <div class="chart-stats" style="margin-bottom:12px">
+      <div class="chart-stat">
+        <div class="chart-stat-val">${dur ?? '—'}${dur ? 'm' : ''}</div>
+        <div class="chart-stat-label">Duration</div>
+      </div>
+      <div class="chart-stat">
+        <div class="chart-stat-val">${totalSets}</div>
+        <div class="chart-stat-label">Sets</div>
+      </div>
+      <div class="chart-stat">
+        <div class="chart-stat-val">${volume > 0 ? volLabel : '—'}</div>
+        <div class="chart-stat-label">lbs moved</div>
+      </div>
+    </div>`;
+
+  const notesHtml = log.notes
+    ? `<div style="background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;font-size:14px;color:var(--muted);margin-bottom:12px">${log.notes}</div>`
+    : '';
 
   const exRows = log.exercises.map(ex => {
     const safeName = ex.exerciseName.replace(/'/g, "\\'");
@@ -433,8 +457,8 @@ function showLogDetail(logId) {
   }).join('');
 
   openModal(
-    `${log.templateName} — ${fmtDate(log.date)}${dur ? ` (${dur}m)` : ''}`,
-    `${exRows}
+    `${log.templateName} — ${fmtDate(log.date)}`,
+    `${statsHtml}${notesHtml}${exRows}
     <div style="display:flex;gap:8px;margin-top:16px">
       <button class="btn btn-secondary" style="flex:1" onclick="editLog('${logId}')">Edit</button>
       <button class="btn btn-danger"    style="flex:1" onclick="deleteLog('${logId}')">Delete</button>
@@ -654,6 +678,9 @@ function renderActiveWorkout() {
   }
 
   buildExerciseList(w);
+
+  const notesEl = el('workout-notes');
+  if (notesEl) notesEl.value = w.notes || '';
 }
 
 function buildExerciseList(w) {
@@ -793,6 +820,64 @@ function openAddExerciseModal() {
   });
 }
 
+// ── PR DETECTION ─────────────────────────────────────────────
+function detectPRs(workout) {
+  const prs = [];
+  workout.exercises.forEach(ex => {
+    const sessionMax = Math.max(...ex.sets.map(s => s.weight || 0));
+    if (sessionMax <= 0) return;
+    const history = getExerciseMaxWeightHistory(ex.exerciseId);
+    const historicalMax = history.length ? Math.max(...history.map(h => h.value)) : 0;
+    if (sessionMax > historicalMax) {
+      prs.push({ name: ex.exerciseName, weight: sessionMax, previous: historicalMax });
+    }
+  });
+  return prs;
+}
+
+function calcVolume(workout) {
+  return workout.exercises.reduce((sum, ex) =>
+    sum + ex.sets.reduce((s2, s) => s2 + ((s.reps || 0) * (s.weight || 0)), 0), 0
+  );
+}
+
+function showCompletionModal(workout, prs, volume) {
+  const dur = workout.endTime
+    ? Math.round((workout.endTime - workout.startTime) / 60000) : 0;
+  const totalSets = workout.exercises.reduce((s, ex) => s + ex.sets.length, 0);
+  const volLabel  = volume >= 1000
+    ? (Math.round(volume / 100) / 10) + 'k' : String(volume);
+
+  const prHtml = prs.length ? `
+    <div class="section-label mt-16" style="color:var(--success)">Personal Records 🏆</div>
+    ${prs.map(pr => `
+      <div class="pr-row">
+        <span class="pr-name">${pr.name}</span>
+        <span class="pr-weight">${pr.weight} lbs${pr.previous > 0 ? ` <span style="font-size:12px;color:var(--muted)">(+${pr.weight - pr.previous})</span>` : ' <span style="font-size:12px;color:var(--muted)">first!</span>'}</span>
+      </div>`).join('')}
+  ` : '';
+
+  openModal('Workout Complete! 💪', `
+    <div class="chart-stats">
+      <div class="chart-stat">
+        <div class="chart-stat-val">${dur}m</div>
+        <div class="chart-stat-label">Duration</div>
+      </div>
+      <div class="chart-stat">
+        <div class="chart-stat-val">${totalSets}</div>
+        <div class="chart-stat-label">Sets done</div>
+      </div>
+      <div class="chart-stat">
+        <div class="chart-stat-val">${volume > 0 ? volLabel : '—'}</div>
+        <div class="chart-stat-label">lbs moved</div>
+      </div>
+    </div>
+    ${prHtml}
+    <button class="btn btn-primary btn-full mt-16"
+      onclick="closeModal();showView('dashboard')">Done</button>
+  `);
+}
+
 function finishWorkout() {
   const isEditing = !!editingLogId;
   if (!confirm(isEditing ? 'Save changes to this workout?' : 'Finish and save this workout?')) return;
@@ -800,10 +885,18 @@ function finishWorkout() {
   const w = S.getCurrent();
   if (!isEditing) w.endTime = Date.now();
 
-  // Only keep sets the user checked off
+  // Capture notes
+  const notesEl = el('workout-notes');
+  if (notesEl) w.notes = notesEl.value.trim();
+
+  // Only keep checked sets
   w.exercises = w.exercises
     .map(ex => ({ ...ex, sets: ex.sets.filter(s => s.done) }))
     .filter(ex => ex.sets.length > 0);
+
+  // Detect PRs and volume before saving (history lookup won't include current session)
+  const prs    = isEditing ? [] : detectPRs(w);
+  const volume = calcVolume(w);
 
   const logs = S.getLogs();
   if (isEditing) {
@@ -818,7 +911,9 @@ function finishWorkout() {
   editingLogId = null;
   stopElapsed();
   stopRest();
-  showView('dashboard');
+
+  if (!isEditing) showCompletionModal(w, prs, volume);
+  else showView('dashboard');
 }
 
 function discardWorkout() {
@@ -1062,6 +1157,123 @@ function selectDay(iso, e) {
     ${exRows}
     <div style="color:var(--accent);font-size:13px;margin-top:10px">Tap to open →</div>
   </div>`;
+}
+
+// ── MORE / SETTINGS ──────────────────────────────────────────
+function getBWLog()       { return JSON.parse(localStorage.getItem('ft_bw') || '[]'); }
+function saveBWLog(arr)   { localStorage.setItem('ft_bw', JSON.stringify(arr)); }
+
+function logBodyWeight() {
+  const val = parseFloat(el('bw-input').value);
+  if (!val || val <= 0) { alert('Enter a valid weight'); return; }
+  const log  = getBWLog();
+  const today = todayISO();
+  const idx  = log.findIndex(e => e.date === today);
+  if (idx >= 0) log[idx].weight = val; else log.push({ date: today, weight: val });
+  log.sort((a,b) => a.date.localeCompare(b.date));
+  saveBWLog(log);
+  renderMore();
+}
+
+function deleteBWEntry(date) {
+  saveBWLog(getBWLog().filter(e => e.date !== date));
+  renderMore();
+}
+
+function exportData() {
+  const payload = {
+    version: 2,
+    exported: new Date().toISOString(),
+    templates:   S.getTemplates(),
+    logs:        S.getLogs(),
+    bodyweight:  getBWLog(),
+  };
+  const blob = new Blob([JSON.stringify(payload, null, 2)], { type:'application/json' });
+  const url  = URL.createObjectURL(blob);
+  const a    = document.createElement('a');
+  a.href     = url;
+  a.download = `fittrack-${todayISO()}.json`;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function importData() {
+  const input   = document.createElement('input');
+  input.type    = 'file';
+  input.accept  = '.json';
+  input.onchange = e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = ev => {
+      try {
+        const d = JSON.parse(ev.target.result);
+        if (!Array.isArray(d.templates) || !Array.isArray(d.logs))
+          throw new Error('Unrecognised file format');
+        if (!confirm(`Import ${d.templates.length} templates and ${d.logs.length} workouts?\n\nThis REPLACES your current data.`)) return;
+        S.saveTemplates(d.templates);
+        S.saveLogs(d.logs);
+        if (d.bodyweight) saveBWLog(d.bodyweight);
+        alert('Import successful!');
+        renderMore();
+      } catch(err) { alert('Import failed: ' + err.message); }
+    };
+    reader.readAsText(file);
+  };
+  input.click();
+}
+
+function renderMore() {
+  const bwLog   = getBWLog();
+  const logs    = S.getLogs();
+  const templates = S.getTemplates();
+  const recent  = [...bwLog].reverse().slice(0, 6);
+  const todayBW = bwLog.find(e => e.date === todayISO());
+
+  const bwRows = recent.map(e => `
+    <div class="bw-entry">
+      <div>
+        <div style="font-weight:500">${e.weight} lbs</div>
+        <div style="font-size:12px;color:var(--muted)">${fmtDate(e.date)}</div>
+      </div>
+      <button class="btn-icon text-danger" onclick="deleteBWEntry('${e.date}')">✕</button>
+    </div>`).join('') || '<p class="text-muted" style="font-size:14px;padding:4px 0">No entries yet.</p>';
+
+  el('more-content').innerHTML = `
+    <!-- Body Weight -->
+    <div class="more-section-card">
+      <h3>Body Weight</h3>
+      <div style="display:flex;gap:8px;margin-bottom:12px">
+        <input id="bw-input" type="number" inputmode="decimal" step="0.1"
+          placeholder="lbs" value="${todayBW ? todayBW.weight : ''}">
+        <button class="btn btn-primary" style="flex-shrink:0;padding:10px 16px" onclick="logBodyWeight()">Log</button>
+      </div>
+      ${bwLog.length >= 2 ? `<div class="chart-wrap"><canvas id="bw-chart" height="160"></canvas></div>` : ''}
+      ${bwRows}
+    </div>
+
+    <!-- Data -->
+    <div class="more-section-card">
+      <h3>Data</h3>
+      <p style="font-size:13px;color:var(--muted);margin-bottom:12px">
+        ${templates.length} templates · ${logs.length} workouts saved
+      </p>
+      <div style="display:flex;gap:8px">
+        <button class="btn btn-secondary" style="flex:1" onclick="exportData()">Export JSON</button>
+        <button class="btn btn-secondary" style="flex:1" onclick="importData()">Import JSON</button>
+      </div>
+    </div>
+  `;
+
+  if (bwLog.length >= 2) {
+    requestAnimationFrame(() => {
+      const canvas = el('bw-chart');
+      if (!canvas) return;
+      canvas.width  = el('more-content').clientWidth - 32;
+      canvas.height = 160;
+      drawLineChart(canvas, bwLog.slice(-30).map(e => ({ date: e.date, value: e.weight })));
+    });
+  }
 }
 
 // ── INIT ──────────────────────────────────────────────────────

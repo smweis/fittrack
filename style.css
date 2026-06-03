@@ -626,6 +626,59 @@ canvas { display: block; }
 .rand-ex-name { font-weight: 500; }
 .rand-ex-meta { font-size: 12px; color: var(--muted); }
 
+/* ── NOTES TEXTAREA (workout) ── */
+#workout-notes {
+  resize: none;
+  font-size: 14px;
+  color: var(--muted);
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px 12px;
+  width: 100%;
+  font-family: inherit;
+  outline: none;
+}
+#workout-notes:focus { border-color: var(--accent); color: var(--text); }
+
+/* ── MORE / SETTINGS ── */
+.more-section-card {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 16px;
+  margin-bottom: 16px;
+}
+.more-section-card h3 {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--muted);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  margin-bottom: 12px;
+}
+.bw-entry {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+  font-size: 14px;
+}
+.bw-entry:last-child { border-bottom: none; }
+
+/* ── COMPLETION MODAL ── */
+.pr-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+.pr-row:last-child { border-bottom: none; }
+.pr-name { font-weight: 500; font-size: 15px; }
+.pr-weight { color: var(--success); font-weight: 700; font-size: 15px; }
+
 /* ── AUTH GATE ── */
 #auth-gate {
   position: fixed;

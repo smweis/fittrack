@@ -36,6 +36,10 @@
       <span class="nav-icon">◫</span>
       <span>Calendar</span>
     </button>
+    <button class="nav-btn" data-view="more">
+      <span class="nav-icon">⚙</span>
+      <span>More</span>
+    </button>
   </nav>
 
   <!-- ── DASHBOARD ── -->
@@ -59,8 +63,11 @@
       <button id="btn-skip-rest" class="btn-ghost-sm">Skip</button>
     </div>
     <div id="exercise-list"></div>
-    <div style="padding: 0 16px 24px;">
+    <div style="padding: 0 16px 8px;">
       <button class="btn btn-secondary btn-full" onclick="openAddExerciseModal()">+ Add Exercise</button>
+    </div>
+    <div style="padding: 0 16px 24px;">
+      <textarea id="workout-notes" rows="2" placeholder="Workout notes (optional)..."></textarea>
     </div>
   </section>
 
@@ -77,6 +84,12 @@
   <!-- ── CALENDAR ── -->
   <section id="view-calendar" class="view">
     <div id="calendar-content"></div>
+  </section>
+
+  <!-- ── MORE / SETTINGS ── -->
+  <section id="view-more" class="view">
+    <div class="view-header"><h2>More</h2></div>
+    <div id="more-content"></div>
   </section>
 
   <!-- ── MODAL (bottom sheet) ── -->
