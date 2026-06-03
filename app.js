@@ -301,14 +301,63 @@ function startElapsed(startTime) {
 function stopElapsed() { if(elapsedIv){ clearInterval(elapsedIv); elapsedIv=null; } }
 
 // ── DASHBOARD ─────────────────────────────────────────────────
+function getWorkoutContext(name) {
+  const n = name.toLowerCase();
+  if (n.includes('home'))  return 'home';
+  if (n.includes('gym'))   return 'gym';
+  if (n.includes('beach')) return 'beach';
+  return '';
+}
+function getTemplateType(name) {
+  const n = name.toLowerCase();
+  if (n.includes('push') || n.includes('upper')) return 'push';
+  if (n.includes('pull'))                         return 'pull';
+  if (n.includes('lower') || n.includes('leg'))   return 'legs';
+  return '';
+}
+
 function nextTemplate() {
   const templates = S.getTemplates();
   if (!templates.length) return null;
   const sorted = [...templates].sort((a,b) => a.rotationOrder - b.rotationOrder);
   const logs = S.getLogs();
   if (!logs.length) return sorted[0];
-  const idx = sorted.findIndex(t => t.id === logs[logs.length-1].templateId);
+
+  const lastLog      = logs[logs.length-1];
+  const lastTpl      = templates.find(t => t.id === lastLog.templateId);
+  const lastContext  = lastTpl ? getWorkoutContext(lastTpl.name) : '';
+  const lastType     = classifyWorkout(lastLog.exercises);
+  const suggestedType = nextWorkoutType(lastType);
+
+  // Prefer same context (Home/Gym/Beach) + correct next muscle group
+  if (lastContext) {
+    const match = sorted.find(t =>
+      getWorkoutContext(t.name) === lastContext &&
+      getTemplateType(t.name)  === suggestedType
+    );
+    if (match) return match;
+  }
+
+  // Fallback: next in rotation order
+  const idx = sorted.findIndex(t => t.id === lastLog.templateId);
   return sorted[(idx+1) % sorted.length];
+}
+
+function openTemplatePicker() {
+  const templates = S.getTemplates().sort((a,b) => a.rotationOrder - b.rotationOrder);
+  if (!templates.length) {
+    openModal('No Templates', '<p class="text-muted" style="padding:16px 0">Create a template first.</p>');
+    return;
+  }
+  const rows = templates.map(t => `
+    <div class="modal-item" onclick="closeModal();startWorkout('${t.id}')">
+      <div>
+        <div class="modal-item-label">${t.name}</div>
+        <div class="modal-item-sub">${t.exercises.length} exercises · rotation #${t.rotationOrder}</div>
+      </div>
+      <span style="color:var(--accent)">▶</span>
+    </div>`).join('');
+  openModal('Choose Workout', rows);
 }
 
 function renderDashboard() {
@@ -335,6 +384,7 @@ function renderDashboard() {
         <div class="next-card-name">${next.name}</div>
         <div class="next-card-meta">${next.exercises.length} exercise${next.exercises.length!==1?'s':''} · rotation #${next.rotationOrder}</div>
         <button class="btn btn-primary btn-full" onclick="startWorkout('${next.id}')">Start →</button>
+        <button class="btn-ghost" style="width:100%;margin-top:6px;font-size:13px" onclick="openTemplatePicker()">Choose different workout</button>
       </div>`;
     } else {
       html += `<div class="card mt-12" style="text-align:center;padding:28px">
