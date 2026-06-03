@@ -509,7 +509,7 @@ function startWorkout(templateId) {
         exerciseName: ex.name,
         muscleGroup:  ex.muscleGroup,
         restSeconds:  last?.restSeconds ?? ex.restSeconds ?? 90,
-        section:      'Main',
+        section:      ex.section || 'Main',
         sets: last?.sets ?? Array.from({length: ex.sets}, () =>
           ({ weight: ex.weight || 0, reps: ex.reps || 10, done: false })
         ),
@@ -719,11 +719,13 @@ function renderTemplateEditor() {
 
   const exHtml = t.exercises.length
     ? t.exercises.map((ex,i) => {
-        const eqLabel = (ex.equipment||[]).join(', ') || 'no equipment';
+        const eqLabel = (ex.equipment||[]).join(', ') || 'bodyweight';
+        const secBadge = (ex.section && ex.section !== 'Main')
+          ? ` · <span style="color:var(--accent)">${ex.section}</span>` : '';
         return `<div class="editor-ex-item">
           <div class="editor-ex-info">
             <div class="editor-ex-name">${ex.name}</div>
-            <div class="editor-ex-meta">${ex.muscleGroup} · ${ex.sets}×${ex.reps} · ${ex.weight}lbs · ${ex.restSeconds}s rest · ${eqLabel}</div>
+            <div class="editor-ex-meta">${ex.muscleGroup} · ${ex.sets}×${ex.reps} · ${ex.weight}lbs · ${ex.restSeconds}s rest · ${eqLabel}${secBadge}</div>
           </div>
           <button class="btn-icon" onclick="editTplEx(${i})">✎</button>
           <button class="btn-icon text-danger" onclick="removeTplEx(${i})">✕</button>
@@ -760,9 +762,12 @@ const MUSCLE_GROUPS = ['chest','back','shoulders','biceps','triceps','legs','glu
 
 function showExForm(ex, cb) {
   exFormCb = cb;
-  const e = ex || {id:uid(), name:'', muscleGroup:'chest', sets:3, reps:10, weight:0, restSeconds:90, equipment:[]};
+  const e = ex || {id:uid(), name:'', muscleGroup:'chest', section:'Main', sets:3, reps:10, weight:0, restSeconds:90, equipment:[]};
   const muscleOpts = MUSCLE_GROUPS.map(g =>
     `<option value="${g}" ${g===e.muscleGroup?'selected':''}>${g.charAt(0).toUpperCase()+g.slice(1)}</option>`
+  ).join('');
+  const sectionOpts = ['Warm Up','Main','Cool Down'].map(s =>
+    `<option value="${s}" ${(e.section||'Main')===s?'selected':''}>${s}</option>`
   ).join('');
   const chips = EQUIPMENT_LIST.map(eq =>
     `<button class="chip ${(e.equipment||[]).includes(eq)?'selected':''}" data-eq="${eq}"
@@ -774,9 +779,15 @@ function showExForm(ex, cb) {
       <label>Exercise Name</label>
       <input id="ex-name" type="text" value="${e.name}" placeholder="e.g. Bench Press">
     </div>
-    <div class="form-group">
-      <label>Muscle Group</label>
-      <select id="ex-muscle">${muscleOpts}</select>
+    <div class="two-col">
+      <div class="form-group">
+        <label>Muscle Group</label>
+        <select id="ex-muscle">${muscleOpts}</select>
+      </div>
+      <div class="form-group">
+        <label>Section</label>
+        <select id="ex-section">${sectionOpts}</select>
+      </div>
     </div>
     <div class="two-col">
       <div class="form-group"><label>Sets</label>
@@ -806,6 +817,7 @@ function submitExForm(id) {
     id,
     name,
     muscleGroup: el('ex-muscle').value,
+    section:     el('ex-section').value || 'Main',
     sets:        parseInt(el('ex-sets').value)    || 3,
     reps:        parseInt(el('ex-reps').value)    || 10,
     weight:      parseFloat(el('ex-weight').value) || 0,
